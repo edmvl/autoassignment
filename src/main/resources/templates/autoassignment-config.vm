@@ -32,21 +32,7 @@
                 <h3>Правила</h3>
                 <button class="aui-button aui-button-primary" type="button" id="add-rule-btn">Добавить правило</button>
             </div>
-            <table class="aui" id="rules-table" style="width:100%">
-                <thead>
-                <tr>
-                    <th class="priority-col">Приоритет</th>
-                    <th>Название</th>
-                    <th>Исполнитель</th>
-                    <th>Соисполнители</th>
-                    <th>Наблюдатели</th>
-                    <th>Условия</th>
-                    <th>Активно</th>
-                    <th></th>
-                </tr>
-                </thead>
-                <tbody id="rules-table-body"></tbody>
-            </table>
+            <div id="rules-list" class="rules-list"></div>
             <div id="no-rules" class="aui-message info" style="display:none">
                 <p>Правила не заданы. Добавьте правило, чтобы автоматически заполнять Исполнителя, Соисполнителей и Наблюдателей при создании задачи.</p>
             </div>
@@ -67,8 +53,13 @@
                                    placeholder="Например: Компонент = Backend">
                         </div>
                         <div class="field-group">
-                            <label for="rule-assignees">Исполнитель</label>
-                            <select class="select" id="rule-assignees"></select>
+                            <label>Исполнитель</label>
+                            <div class="ms" id="rule-assignees">
+                                <div class="ms-control">
+                                    <input type="text" class="ms-filter" placeholder="Поиск исполнителя...">
+                                </div>
+                                <div class="ms-dropdown" style="display:none"></div>
+                            </div>
                             <div class="description">Необязательно. Один пользователь.</div>
                         </div>
                         <div class="field-group">

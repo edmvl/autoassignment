@@ -16,6 +16,7 @@ import com.atlassian.jira.issue.fields.NavigableField;
 import com.atlassian.jira.issue.fields.config.FieldConfig;
 import com.atlassian.jira.issue.fields.config.FieldConfigScheme;
 import com.atlassian.jira.issue.issuetype.IssueType;
+import com.atlassian.jira.issue.label.LabelManager;
 import com.atlassian.jira.issue.priority.Priority;
 import com.atlassian.jira.issue.resolution.Resolution;
 import com.atlassian.jira.issue.status.Status;
@@ -55,6 +56,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * REST API for the auto-assignment configuration pages.
@@ -81,6 +83,7 @@ public class AssignmentConfigResource {
     private final ConstantsManager constantsManager;
     private final ProjectComponentManager projectComponentManager;
     private final VersionManager versionManager;
+    private final LabelManager labelManager;
 
     @Autowired
     public AssignmentConfigResource(
@@ -94,7 +97,8 @@ public class AssignmentConfigResource {
             @ComponentImport JiraAuthenticationContext authenticationContext,
             @ComponentImport ConstantsManager constantsManager,
             @ComponentImport ProjectComponentManager projectComponentManager,
-            @ComponentImport VersionManager versionManager) {
+            @ComponentImport VersionManager versionManager,
+            @ComponentImport LabelManager labelManager) {
         this.ruleService = ruleService;
         this.settingsService = settingsService;
         this.fieldManager = fieldManager;
@@ -106,6 +110,7 @@ public class AssignmentConfigResource {
         this.constantsManager = constantsManager;
         this.projectComponentManager = projectComponentManager;
         this.versionManager = versionManager;
+        this.labelManager = labelManager;
     }
 
     @GET
@@ -139,7 +144,8 @@ public class AssignmentConfigResource {
     @GET
     @Path("fields/{fieldId}/values")
     public Response getFieldValues(@PathParam("fieldId") String fieldId,
-                                   @QueryParam("projectKey") String projectKey) {
+                                   @QueryParam("projectKey") String projectKey,
+                                   @QueryParam("query") String query) {
         requireLoggedIn();
         Project project = projectKey == null ? null : projectManager.getProjectByCurrentKey(projectKey);
         List<Map<String, Object>> values = new ArrayList<>();
@@ -151,10 +157,36 @@ public class AssignmentConfigResource {
             } else {
                 values.addAll(customFieldOptions(customField, project));
             }
+        } else if (IssueFieldConstants.LABELS.equals(fieldId)) {
+            values.addAll(labelValues(project, query));
         } else {
             values.addAll(systemFieldValues(fieldId, project));
         }
         return Response.ok(values).build();
+    }
+
+    /**
+     * Existing labels for the project, filtered by the given prefix. JIRA keeps labels
+     * per issue, so the label manager is used to suggest them.
+     */
+    private List<Map<String, Object>> labelValues(Project project, String query) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        ApplicationUser user = authenticationContext.getLoggedInUser();
+        if (user == null || project == null) {
+            return result;
+        }
+        try {
+            Set<String> labels = labelManager.getSuggestedLabels(
+                    user, project.getId(), query == null ? "" : query);
+            if (labels != null) {
+                for (String label : labels) {
+                    result.add(value(label));
+                }
+            }
+        } catch (RuntimeException e) {
+            // Labels are unavailable (e.g. no permission) — leave the list empty.
+        }
+        return result;
     }
 
     @GET

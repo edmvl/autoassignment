@@ -4,6 +4,8 @@
     var $ = AJS.$;
     var CONFIG = window.AUTOASSIGN || {};
     var REST = AJS.contextPath() + '/rest/autoassignment/1.0';
+    var USER_PICKER = AJS.contextPath() + '/rest/api/2/user/picker';
+    var USER_REST = AJS.contextPath() + '/rest/api/2/user';
 
     var OPERATOR_LABELS = {
         EQUALS: 'равно',
@@ -15,9 +17,11 @@
 
     var state = {
         fields: [],
-        users: [],
         editingId: null
     };
+
+    var userCache = {};      // userName -> displayName
+    var searchTimer = null;
 
     function restUrl(path) {
         return REST + path;
@@ -66,35 +70,63 @@
     }
 
     // --------------------------------------------------- multi-select widget
-    // Compact searchable multi-select: tags in the control + dropdown with
-    // a search field and checkboxes.
 
-    function updateMsTags($ms) {
+    function appendTag($ms, value, label, onRemove) {
         var $control = $ms.find('.ms-control');
         var $filter = $control.find('.ms-filter');
-        $control.find('.ms-tag').remove();
+        var $tag = $('<span class="ms-tag"></span>').attr('data-value', value);
+        $tag.append($('<span class="ms-tag-text"></span>').text(label));
+        var $remove = $('<span class="ms-remove" title="Убрать">&times;</span>');
+        $remove.on('click', function (e) {
+            e.stopPropagation();
+            onRemove(value);
+        });
+        $tag.append($remove);
+        $filter.before($tag);
+    }
 
+    function clearTags($ms) {
+        $ms.find('.ms-control .ms-tag').remove();
+    }
+
+    function updateMsTags($ms) {
+        clearTags($ms);
         $ms.find('.ms-dropdown input[type=checkbox]:checked').each(function () {
             var value = this.value;
-            var label = $(this).closest('.check-item').attr('data-label') || value;
-            var $tag = $('<span class="ms-tag"></span>').attr('data-value', value);
-            $tag.append($('<span class="ms-tag-text"></span>').text(label));
-            var $remove = $('<span class="ms-remove" title="Убрать">&times;</span>');
-            $remove.on('click', function (e) {
-                e.stopPropagation();
+            var label = $(this).closest('.check-item').attr('data-display') || value;
+            appendTag($ms, value, label, function (v) {
                 $ms.find('.ms-dropdown input[type=checkbox]').each(function () {
-                    if (this.value === value) {
+                    if (this.value === v) {
                         this.checked = false;
                     }
                 });
                 updateMsTags($ms);
             });
-            $tag.append($remove);
-            $filter.before($tag);
         });
     }
 
+    function renderAsyncTags($ms) {
+        clearTags($ms);
+        var map = $ms.data('selectedValues') || {};
+        Object.keys(map).forEach(function (value) {
+            appendTag($ms, value, map[value], function (v) {
+                var m = $ms.data('selectedValues') || {};
+                delete m[v];
+                $ms.data('selectedValues', m);
+                $ms.find('.ms-dropdown input[type=checkbox]').each(function () {
+                    if (this.value === v) {
+                        this.checked = false;
+                    }
+                });
+                renderAsyncTags($ms);
+            });
+        });
+    }
+
+    // Static values (field options, statuses, versions, ...).
     function renderMs($ms, items, selected) {
+        $ms.data('source', 'static');
+        $ms.data('selectedValues', null);
         var $dropdown = $ms.find('.ms-dropdown');
         $dropdown.empty();
         selected = selected || [];
@@ -108,7 +140,7 @@
             var search = String(item.label + ' ' + item.value).toLowerCase();
             $dropdown.append(
                 '<label class="check-item" data-search="' + escapeHtml(search)
-                + '" data-label="' + escapeHtml(item.label) + '">'
+                + '" data-display="' + escapeHtml(item.label) + '">'
                 + '<input type="checkbox" value="' + escapeHtml(item.value) + '"' + checked + '> '
                 + escapeHtml(item.label)
                 + '</label>'
@@ -117,16 +149,125 @@
         updateMsTags($ms);
     }
 
+    // Generic async picker (server-side search).
+    function asyncPickerInit($ms, items, multiple, searchFn, allowEmpty) {
+        $ms.data('source', 'async');
+        $ms.data('multiple', multiple !== false);
+        $ms.data('searchFn', searchFn);
+        $ms.data('allowEmpty', !!allowEmpty);
+        var map = {};
+        (items || []).forEach(function (item) {
+            map[String(item.value)] = item.label || String(item.value);
+        });
+        $ms.data('selectedValues', map);
+        $ms.find('.ms-dropdown').empty().hide();
+        $ms.find('.ms-filter').val('');
+        renderAsyncTags($ms);
+    }
+
+    function fetchUser(name, cb) {
+        $.ajax({ url: USER_REST, data: { username: name }, dataType: 'json' })
+            .done(function (user) { cb((user && user.displayName) || name); })
+            .fail(function () { cb(name); });
+    }
+
+    function resolveUserNames($ms, names) {
+        (names || []).forEach(function (name) {
+            if (!userCache[name]) {
+                fetchUser(name, function (label) {
+                    userCache[name] = label;
+                    var map = $ms.data('selectedValues') || {};
+                    if (map[name]) {
+                        map[name] = label;
+                        $ms.data('selectedValues', map);
+                        renderAsyncTags($ms);
+                    }
+                });
+            }
+        });
+    }
+
+    function asyncSearch($ms, term) {
+        var $dropdown = $ms.find('.ms-dropdown');
+        var searchFn = $ms.data('searchFn');
+        if (!searchFn) {
+            return;
+        }
+        if (!term && !$ms.data('allowEmpty')) {
+            $dropdown.html('<div class="ms-empty">Введите текст для поиска</div>');
+            return;
+        }
+        searchFn(term, function (items) {
+            $dropdown.empty();
+            if (!items || !items.length) {
+                $dropdown.append('<div class="ms-empty">Ничего не найдено</div>');
+                return;
+            }
+            var map = $ms.data('selectedValues') || {};
+            items.forEach(function (item) {
+                var value = String(item.value);
+                var label = item.label || value;
+                var checked = map[value] ? ' checked' : '';
+                var $item = $('<label class="check-item"></label>')
+                    .attr('data-search', (label + ' ' + value).toLowerCase())
+                    .attr('data-display', label);
+                $item.append('<input type="checkbox" value="' + escapeHtml(value) + '"' + checked + '> ');
+                $item.append(document.createTextNode(label));
+                $dropdown.append($item);
+            });
+        });
+    }
+
+    function userSearch(term, cb) {
+        if (!term) {
+            cb([]);
+            return;
+        }
+        $.ajax({
+            url: USER_PICKER,
+            data: { query: term, maxResults: 20, showAvatar: false },
+            dataType: 'json'
+        }).done(function (data) {
+            var users = (data && data.users) || [];
+            cb(users.map(function (user) {
+                var name = user.name;
+                var label = user.displayName || name;
+                userCache[name] = label;
+                return { value: name, label: label + ' (' + name + ')' };
+            }));
+        }).fail(function () {
+            cb([]);
+        });
+    }
+
+    function labelSearch(term, cb) {
+        var url = restUrl('/fields/labels/values');
+        var params = [];
+        if (CONFIG.projectKey) {
+            params.push('projectKey=' + encodeURIComponent(CONFIG.projectKey));
+        }
+        if (term) {
+            params.push('query=' + encodeURIComponent(term));
+        }
+        if (params.length) {
+            url += '?' + params.join('&');
+        }
+        $.ajax({ url: url, dataType: 'json' }).done(function (values) {
+            cb((values || []).map(function (v) {
+                return { value: v.value, label: v.value };
+            }));
+        }).fail(function () {
+            cb([]);
+        });
+    }
+
     function msValues($ms) {
+        if ($ms.data('source') === 'async') {
+            return Object.keys($ms.data('selectedValues') || {});
+        }
         return $ms.find('.ms-dropdown input[type=checkbox]:checked').map(function () {
             return this.value;
         }).get();
-    }
-
-    function userItems() {
-        return state.users.map(function (user) {
-            return { value: user.name, label: user.displayName + ' (' + user.name + ')' };
-        });
     }
 
     // ---------------------------------------------------------------- fields
@@ -146,6 +287,14 @@
             html += '<option value="' + key + '">' + OPERATOR_LABELS[key] + '</option>';
         });
         return html;
+    }
+
+    function isUserField(fieldId) {
+        if (fieldId === 'assignee' || fieldId === 'reporter') {
+            return true;
+        }
+        var field = state.fields.filter(function (f) { return f.id === fieldId; })[0];
+        return !!(field && field.type && field.type.indexOf('userpicker') >= 0);
     }
 
     // ------------------------------------------------------------ conditions
@@ -182,7 +331,6 @@
 
         $('#rule-conditions').append($row);
 
-        // Always load values for the currently selected field (including the default).
         var currentFieldId = $row.find('.condition-field').val();
         applyDateInput($row, currentFieldId);
         loadFieldValues($row, currentFieldId, selectedValues);
@@ -218,6 +366,31 @@
         $input.show();
 
         if (!fieldId) {
+            return;
+        }
+
+        if (isUserField(fieldId)) {
+            asyncPickerInit($ms,
+                (selectedValues || []).map(function (v) {
+                    return { value: v, label: userCache[v] || v };
+                }),
+                true, userSearch, false);
+            resolveUserNames($ms, selectedValues || []);
+            $row.data('hasOptions', true);
+            $input.hide();
+            $ms.show();
+            return;
+        }
+
+        if (fieldId === 'labels') {
+            asyncPickerInit($ms,
+                (selectedValues || []).map(function (v) {
+                    return { value: v, label: v };
+                }),
+                true, labelSearch, true);
+            $row.data('hasOptions', true);
+            $input.hide();
+            $ms.show();
             return;
         }
 
@@ -263,24 +436,20 @@
 
     // ----------------------------------------------------------------- users
 
-    function populateSingleSelect(selector, selected) {
-        var $select = $(selector);
-        $select.empty();
-        $select.append('<option value="">— не выбрано —</option>');
-        state.users.forEach(function (user) {
-            $select.append('<option value="' + escapeHtml(user.name) + '">'
-                + escapeHtml(user.displayName) + ' (' + escapeHtml(user.name) + ')</option>');
+    function selectedUserItems(names) {
+        return (names || []).map(function (name) {
+            return { value: name, label: userCache[name] || name };
         });
-        if (selected && selected.length) {
-            $select.val(selected[0]);
-        }
     }
 
     function populateTargets(rule) {
         rule = rule || {};
-        populateSingleSelect('#rule-assignees', rule.assignees || []);
-        renderMs($('#rule-coassignees'), userItems(), rule.coAssignees || []);
-        renderMs($('#rule-watchers'), userItems(), rule.watchers || []);
+        asyncPickerInit($('#rule-assignees'), selectedUserItems(rule.assignees), false, userSearch, false);
+        asyncPickerInit($('#rule-coassignees'), selectedUserItems(rule.coAssignees), true, userSearch, false);
+        asyncPickerInit($('#rule-watchers'), selectedUserItems(rule.watchers), true, userSearch, false);
+        resolveUserNames($('#rule-assignees'), rule.assignees || []);
+        resolveUserNames($('#rule-coassignees'), rule.coAssignees || []);
+        resolveUserNames($('#rule-watchers'), rule.watchers || []);
     }
 
     function userNames(names) {
@@ -288,63 +457,95 @@
             return '';
         }
         return names.map(function (name) {
-            var user = state.users.filter(function (u) { return u.name === name; })[0];
-            return user ? user.displayName : name;
+            return userCache[name] || name;
         }).join(', ');
     }
 
     // ----------------------------------------------------------------- rules
 
-    function conditionsSummary(rule) {
-        if (!rule.conditions || rule.conditions.length === 0) {
-            return 'всегда';
+    function fieldName(fieldId) {
+        var field = state.fields.filter(function (f) { return f.id === fieldId; })[0];
+        return field ? field.name : fieldId;
+    }
+
+    function displayValue(fieldId, value) {
+        if (isUserField(fieldId) && userCache[value]) {
+            return userCache[value];
         }
-        return rule.conditions.map(function (c) {
-            var fieldName = c.fieldId;
-            var field = state.fields.filter(function (f) { return f.id === c.fieldId; })[0];
-            if (field) {
-                fieldName = field.name;
-            }
-            var op = OPERATOR_LABELS[c.operator] || c.operator;
-            if (c.operator === 'IS_EMPTY' || c.operator === 'IS_NOT_EMPTY') {
-                return fieldName + ' ' + op;
-            }
-            var values = c.values || (c.value ? [c.value] : []);
-            return fieldName + ' ' + op + ' «' + values.join(', ') + '»';
-        }).join(' И ');
+        return value;
+    }
+
+    function conditionChip(condition) {
+        var op = OPERATOR_LABELS[condition.operator] || condition.operator;
+        var text;
+        if (condition.operator === 'IS_EMPTY' || condition.operator === 'IS_NOT_EMPTY') {
+            text = fieldName(condition.fieldId) + ' ' + op;
+        } else {
+            var values = condition.values || (condition.value ? [condition.value] : []);
+            text = fieldName(condition.fieldId) + ' ' + op + ' '
+                + values.map(function (v) { return displayValue(condition.fieldId, v); }).join(' / ');
+        }
+        return $('<span class="condition-chip">').text(text);
+    }
+
+    function addTargetChip($container, label, names) {
+        if (!names || !names.length) {
+            return;
+        }
+        var $chip = $('<span class="target-chip">');
+        $chip.append($('<span class="target-label">').text(label + ':'));
+        $chip.append(document.createTextNode(' ' + userNames(names)));
+        $container.append($chip);
+    }
+
+    function ruleCard(rule, index) {
+        var $card = $('<div class="rule-card" draggable="true">').attr('data-id', rule.id);
+        $card.append('<div class="rule-card-handle" title="Перетащите, чтобы изменить приоритет">&#8942;&#8942;</div>');
+
+        var $main = $('<div class="rule-card-main">');
+
+        var $header = $('<div class="rule-card-header">');
+        $header.append($('<span class="rule-priority">').text(index + 1));
+        $header.append($('<span class="rule-name">').text(rule.name || '(без названия)'));
+        $header.append($('<span class="rule-status ' + (rule.enabled ? 'enabled' : 'disabled') + '">')
+            .text(rule.enabled ? 'Активно' : 'Выключено'));
+
+        var $actions = $('<div class="rule-card-actions">');
+        var $edit = $('<button class="aui-button aui-button-light" type="button">Изменить</button>');
+        var $delete = $('<button class="aui-button aui-button-light" type="button">Удалить</button>');
+        $edit.on('click', function () { openEditDialog(rule); });
+        $delete.on('click', function () { deleteRule(rule); });
+        $actions.append($edit).append($delete);
+        $header.append($actions);
+        $main.append($header);
+
+        var $targets = $('<div class="rule-card-targets">');
+        addTargetChip($targets, 'Исполнитель', rule.assignees);
+        addTargetChip($targets, 'Соисполнители', rule.coAssignees);
+        addTargetChip($targets, 'Наблюдатели', rule.watchers);
+        if ($targets.children().length) {
+            $main.append($targets);
+        }
+
+        var $conditions = $('<div class="rule-card-conditions">');
+        if (!rule.conditions || rule.conditions.length === 0) {
+            $conditions.append('<span class="condition-chip condition-chip-empty">без условий — применяется всегда</span>');
+        } else {
+            rule.conditions.forEach(function (condition) {
+                $conditions.append(conditionChip(condition));
+            });
+        }
+        $main.append($conditions);
+
+        $card.append($main);
+        return $card;
     }
 
     function renderRules(rules) {
-        var $body = $('#rules-table-body');
-        $body.empty();
-
+        $('#rules-list').empty();
         $('#no-rules').toggle(!rules || rules.length === 0);
-        $('#rules-table').toggle(rules && rules.length > 0);
-
         (rules || []).forEach(function (rule, index) {
-            var $row = $('<tr>').attr('data-id', rule.id).attr('draggable', 'true');
-
-            var $priority = $('<td class="priority-col">');
-            $priority.append('<span class="drag-handle" title="Перетащите, чтобы изменить приоритет">&#8942;&#8942;</span> ');
-            $priority.append($('<span class="priority-num">').text(index + 1));
-            $row.append($priority);
-
-            $row.append($('<td>').text(rule.name || '(без названия)'));
-            $row.append($('<td>').text(userNames(rule.assignees)));
-            $row.append($('<td>').text(userNames(rule.coAssignees)));
-            $row.append($('<td>').text(userNames(rule.watchers)));
-            $row.append($('<td>').text(conditionsSummary(rule)));
-            $row.append($('<td>').text(rule.enabled ? 'Да' : 'Нет'));
-
-            var $actions = $('<td class="rule-actions">');
-            var $edit = $('<button class="aui-button aui-button-light edit-rule" type="button">Изменить</button>');
-            var $delete = $('<button class="aui-button aui-button-light delete-rule" type="button">Удалить</button>');
-            $edit.on('click', function () { openEditDialog(rule); });
-            $delete.on('click', function () { deleteRule(rule); });
-            $actions.append($edit).append(' ').append($delete);
-            $row.append($actions);
-
-            $body.append($row);
+            $('#rules-list').append(ruleCard(rule, index));
         });
     }
 
@@ -389,12 +590,11 @@
     }
 
     function collectRule() {
-        var assignee = $('#rule-assignees').val();
         return {
             id: state.editingId,
             projectKey: CONFIG.projectKey,
             name: $('#rule-name').val(),
-            assignees: assignee ? [assignee] : [],
+            assignees: msValues($('#rule-assignees')),
             coAssignees: msValues($('#rule-coassignees')),
             watchers: msValues($('#rule-watchers')),
             conditions: collectConditions(),
@@ -457,21 +657,6 @@
         });
     }
 
-    function loadUsers() {
-        getData(restUrl('/users')).done(function (users) {
-            state.users = users || [];
-            if ($('#rule-dialog').is(':visible')) {
-                populateTargets({
-                    assignees: [$('#rule-assignees').val()].filter(Boolean),
-                    coAssignees: msValues($('#rule-coassignees')),
-                    watchers: msValues($('#rule-watchers'))
-                });
-            }
-        }).fail(function (xhr) {
-            showMessage('error', 'Не удалось загрузить пользователей: ' + errorText(xhr));
-        });
-    }
-
     function reloadRules() {
         if (!CONFIG.projectKey) {
             renderRules([]);
@@ -485,13 +670,13 @@
     }
 
     function renumberRows() {
-        $('#rules-table-body tr').each(function (index) {
-            $(this).find('.priority-num').text(index + 1);
+        $('#rules-list .rule-card').each(function (index) {
+            $(this).find('.rule-priority').text(index + 1);
         });
     }
 
     function saveOrder() {
-        var ids = $('#rules-table-body tr').map(function () {
+        var ids = $('#rules-list .rule-card').map(function () {
             return $(this).data('id');
         }).get();
         if (!ids.length) {
@@ -540,7 +725,6 @@
             var $ms = $(this).closest('.ms');
             var $dropdown = $ms.find('.ms-dropdown');
             if ($(e.target).hasClass('ms-filter')) {
-                // Clicking the search field must not close an open dropdown.
                 if (!$dropdown.is(':visible')) {
                     $('.ms-dropdown').hide();
                     $dropdown.show();
@@ -551,22 +735,61 @@
             $('.ms-dropdown').hide();
             if (willOpen) {
                 $dropdown.show();
-                $ms.find('.ms-filter').trigger('focus');
+                var $filter = $ms.find('.ms-filter');
+                $filter.trigger('focus');
+                if ($ms.data('source') === 'async') {
+                    asyncSearch($ms, $filter.val());
+                }
             }
         });
 
         $(document).on('input', '.ms-filter', function () {
             var $ms = $(this).closest('.ms');
-            var term = String($(this).val() || '').toLowerCase();
+            var term = String($(this).val() || '');
+            if ($ms.data('source') === 'async') {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    asyncSearch($ms, term.trim());
+                }, 250);
+                return;
+            }
+            var lower = term.toLowerCase();
             $ms.find('.ms-dropdown .check-item').each(function () {
                 var $item = $(this);
                 var text = $item.data('search') || '';
-                $item.toggle(text.indexOf(term) >= 0);
+                $item.toggle(text.indexOf(lower) >= 0);
             });
         });
 
         $(document).on('change', '.ms-dropdown input[type=checkbox]', function () {
-            updateMsTags($(this).closest('.ms'));
+            var $ms = $(this).closest('.ms');
+            if ($ms.data('source') === 'async') {
+                var name = this.value;
+                var label = $(this).closest('.check-item').attr('data-display') || name;
+                var map = $ms.data('selectedValues') || {};
+                if ($ms.data('multiple') === false) {
+                    map = {};
+                    $ms.find('.ms-dropdown input[type=checkbox]').not(this).prop('checked', false);
+                    if (this.checked) {
+                        map[name] = label;
+                    }
+                    $ms.data('selectedValues', map);
+                    renderAsyncTags($ms);
+                    if (this.checked) {
+                        $ms.find('.ms-dropdown').hide();
+                    }
+                } else {
+                    if (this.checked) {
+                        map[name] = label;
+                    } else {
+                        delete map[name];
+                    }
+                    $ms.data('selectedValues', map);
+                    renderAsyncTags($ms);
+                }
+                return;
+            }
+            updateMsTags($ms);
         });
 
         $(document).on('click', function (e) {
@@ -595,8 +818,8 @@
         // Drag-and-drop rule ordering.
         var dragRow = null;
 
-        $('#rules-table-body')
-            .on('dragstart', 'tr', function (e) {
+        $('#rules-list')
+            .on('dragstart', '.rule-card', function (e) {
                 dragRow = this;
                 $(this).addClass('dragging');
                 if (e.originalEvent && e.originalEvent.dataTransfer) {
@@ -608,7 +831,7 @@
                     }
                 }
             })
-            .on('dragover', 'tr', function (e) {
+            .on('dragover', '.rule-card', function (e) {
                 if (!dragRow || this === dragRow) {
                     return;
                 }
@@ -625,10 +848,10 @@
                 }
                 renumberRows();
             })
-            .on('drop', 'tr', function (e) {
+            .on('drop', '.rule-card', function (e) {
                 e.preventDefault();
             })
-            .on('dragend', 'tr', function () {
+            .on('dragend', '.rule-card', function () {
                 if (!dragRow) {
                     return;
                 }
@@ -651,7 +874,6 @@
         }
 
         loadFields();
-        loadUsers();
         reloadRules();
     }
 

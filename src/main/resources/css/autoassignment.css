@@ -13,7 +13,147 @@
     align-items: center;
 }
 
-/* Conditions: grid so controls never overflow the dialog */
+/* ------------------------------------------------ rules list (cards) */
+
+.rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rule-card {
+    display: flex;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid #dfe1e6;
+    border-radius: 4px;
+    padding: 12px 16px;
+    box-shadow: 0 1px 2px rgba(9, 30, 66, 0.08);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.rule-card:hover {
+    border-color: #b3bac5;
+    box-shadow: 0 2px 8px rgba(9, 30, 66, 0.14);
+}
+
+.rule-card.dragging {
+    opacity: 0.5;
+}
+
+.rule-card-handle {
+    cursor: grab;
+    color: #6b778c;
+    letter-spacing: -2px;
+    user-select: none;
+    font-size: 18px;
+    line-height: 1.4;
+    padding-top: 1px;
+}
+
+.rule-card-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.rule-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rule-priority {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 12px;
+    background: #dfe1e6;
+    color: #42526e;
+    font-weight: 600;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.rule-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: #172b4d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rule-status {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.rule-status.enabled {
+    background: #e3fcef;
+    color: #006644;
+}
+
+.rule-status.disabled {
+    background: #f4f5f7;
+    color: #6b778c;
+}
+
+.rule-card-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.rule-card-targets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.target-chip {
+    background: #deebff;
+    color: #0747a6;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.target-label {
+    font-weight: 600;
+}
+
+.rule-card-conditions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.condition-chip {
+    background: #f4f5f7;
+    color: #42526e;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.condition-chip-empty {
+    font-style: italic;
+    color: #6b778c;
+}
+
+/* ------------------------------------------------ conditions in the modal */
+
 .condition-row {
     display: grid;
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.7fr) auto;
@@ -36,7 +176,8 @@
     flex-shrink: 0;
 }
 
-/* Compact searchable multi-select (tags + dropdown) */
+/* ------------------------------------------------ multi-select widget */
+
 .ms {
     position: relative;
 }
@@ -130,43 +271,8 @@
     margin-right: 6px;
 }
 
-#rules-table td, #rules-table th {
-    vertical-align: middle;
-}
+/* ------------------------------------------------ modal */
 
-.rule-actions {
-    white-space: nowrap;
-}
-
-/* Rule priority + drag handle */
-.priority-col {
-    width: 90px;
-    white-space: nowrap;
-    text-align: center;
-}
-
-.drag-handle {
-    cursor: grab;
-    color: #6b778c;
-    user-select: none;
-    letter-spacing: -2px;
-}
-
-.priority-num {
-    color: #6b778c;
-    font-weight: 600;
-}
-
-#rules-table tbody tr {
-    cursor: grab;
-}
-
-#rules-table tbody tr.dragging {
-    opacity: 0.5;
-    background: #f4f5f7;
-}
-
-/* Self-contained modal (no dependency on AUI dialog2) */
 .autoassign-modal-overlay {
     position: fixed;
     top: 0;
