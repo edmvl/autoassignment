@@ -1,0 +1,45 @@
+.autoassignment-container {
+    padding: 20px;
+    max-width: 980px;
+}
+
+.autoassignment-section {
+    margin-bottom: 32px;
+}
+
+.autoassignment-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.condition-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.condition-row .condition-field {
+    width: 40%;
+}
+
+.condition-row .condition-operator {
+    width: 28%;
+}
+
+.condition-row .condition-value {
+    flex: 1;
+}
+
+.condition-row .remove-condition {
+    flex-shrink: 0;
+}
+
+#rules-table td, #rules-table th {
+    vertical-align: middle;
+}
+
+.rule-actions {
+    white-space: nowrap;
+}

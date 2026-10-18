@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<atlassian-plugin key="${atlassian.plugin.key}" name="${project.name}" plugins-version="2">
+    <plugin-info>
+        <description>${project.description}</description>
+        <version>${project.version}</version>
+        <vendor name="${project.organization.name}" url="${project.organization.url}"/>
+    </plugin-info>
+
+    <!-- Active Objects module: stores auto-assignment rules per project -->
+    <ao key="autoassignment-ao-module">
+        <description>Active Objects module for auto-assignment rules.</description>
+        <entity>ru.gpb.jira.plugin.autoassignment.ao.AssignmentRule</entity>
+    </ao>
+
+    <!-- Servlet that renders the configuration page -->
+    <servlet key="autoassignment-config-servlet" name="Auto Assignment Configuration Servlet"
+             class="ru.gpb.jira.plugin.autoassignment.servlet.AssignmentConfigServlet">
+        <url-pattern>/autoassignment/config</url-pattern>
+    </servlet>
+
+    <!-- REST endpoints consumed by the configuration page -->
+    <rest key="autoassignment-rest" path="/autoassignment" version="1.0">
+        <description>Auto Assignment configuration REST API.</description>
+    </rest>
+
+    <!-- Static web resources for the configuration page -->
+    <web-resource key="autoassignment-resources">
+        <dependency>com.atlassian.auiplugin:ajs</dependency>
+        <resource type="download" name="autoassignment.css" location="css/autoassignment.css"/>
+        <resource type="download" name="autoassignment.js" location="js/autoassignment.js"/>
+    </web-resource>
+
+    <!-- Link in the left panel of Project Settings -->
+    <web-item key="autoassignment-project-settings-link" section="atl.jira.proj.config" weight="80">
+        <label>Auto Assignment</label>
+        <link linkId="autoassignment-project-settings-link">/plugins/servlet/autoassignment/config?projectKey=$projectKey</link>
+        <condition class="com.atlassian.jira.plugin.webfragment.conditions.UserIsProjectAdminCondition"/>
+    </web-item>
+</atlassian-plugin>

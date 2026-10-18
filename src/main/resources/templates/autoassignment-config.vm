@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Auto Assignment — $projectKey</title>
+    <script>
+        window.AUTOASSIGN = { projectKey: "$!projectKey" };
+    </script>
+    $webResourceManager.getRequiredResources()
+</head>
+<body class="aui-page-focused aui-page-size-medium">
+<div class="autoassignment-container">
+    <h2>Автоматическое назначение</h2>
+
+    #if ($accessDenied)
+        <div class="aui-message error">
+            <p>У вас нет прав администратора проекта для просмотра этой страницы.</p>
+        </div>
+    #else
+        #if ($projectKey == "")
+            <div class="aui-message warning">
+                <p>Не указан ключ проекта. Откройте страницу из раздела «Настройки проекта».</p>
+            </div>
+        #else
+            <p>Проект: <strong>$projectKey</strong></p>
+        #end
+
+        <div id="message" style="display:none"></div>
+
+        <section class="autoassignment-section">
+            <h3>Глобальные настройки</h3>
+            <form class="aui">
+                <div class="field-group">
+                    <label for="enabled-toggle">Включить автоматическое назначение</label>
+                    <input class="checkbox" type="checkbox" id="enabled-toggle">
+                </div>
+                <div class="field-group">
+                    <label for="coassignee-field">Поле «Соисполнитель»</label>
+                    <select class="select" id="coassignee-field">
+                        <option value="">— не выбрано —</option>
+                    </select>
+                    <div class="description">Пользовательское поле типа «Выбор пользователя», в которое записываются соисполнители.</div>
+                </div>
+                <div class="field-group">
+                    <button class="aui-button aui-button-primary" type="button" id="save-config-btn">Сохранить настройки</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="autoassignment-section">
+            <div class="autoassignment-section-header">
+                <h3>Правила</h3>
+                <button class="aui-button aui-button-primary" type="button" id="add-rule-btn">Добавить правило</button>
+            </div>
+            <table class="aui" id="rules-table" style="width:100%">
+                <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Целевое поле</th>
+                    <th>Пользователи</th>
+                    <th>Условия</th>
+                    <th>Активно</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="rules-table-body"></tbody>
+            </table>
+            <div id="no-rules" class="aui-message info" style="display:none">
+                <p>Правила не заданы. Добавьте правило, чтобы автоматически заполнять Исполнителя, Соисполнителя и Наблюдателей при создании задачи.</p>
+            </div>
+        </section>
+
+        <section id="rule-dialog" class="aui-dialog2 aui-dialog2-large aui-layer" role="dialog" aria-hidden="true">
+            <header class="aui-dialog2-header">
+                <h2 class="aui-dialog2-header-main" id="rule-dialog-title">Добавить правило</h2>
+                <a class="aui-dialog2-header-close">
+                    <span class="aui-icon aui-icon-small aui-iconfont-close-dialog">Закрыть</span>
+                </a>
+            </header>
+            <div class="aui-dialog2-content">
+                <form class="aui" id="rule-form">
+                    <div class="field-group">
+                        <label for="rule-name">Название правила</label>
+                        <input class="text long-field" type="text" id="rule-name" name="name"
+                               placeholder="Например: Компонент = Backend">
+                    </div>
+                    <div class="field-group">
+                        <label for="rule-target-type">Целевое поле</label>
+                        <select class="select" id="rule-target-type">
+                            <option value="ASSIGNEE">Исполнитель</option>
+                            <option value="CO_ASSIGNEE">Соисполнитель</option>
+                            <option value="WATCHERS">Наблюдатели</option>
+                        </select>
+                    </div>
+                    <div class="field-group">
+                        <label for="rule-target-users">Пользователи</label>
+                        <select class="select" id="rule-target-users" multiple="multiple" size="5"></select>
+                        <div class="description">Для поля «Исполнитель» выберите одного пользователя, для остальных — одного или несколько.</div>
+                    </div>
+                    <div class="field-group">
+                        <label>Условия</label>
+                        <div id="rule-conditions"></div>
+                        <button class="aui-button" type="button" id="add-condition-btn">Добавить условие</button>
+                        <div class="description">Правило сработает, если выполнены все условия. Если условий нет — правило применяется всегда.</div>
+                    </div>
+                    <div class="field-group">
+                        <label for="rule-enabled">Активно</label>
+                        <input class="checkbox" type="checkbox" id="rule-enabled" checked="checked">
+                    </div>
+                </form>
+            </div>
+            <footer class="aui-dialog2-footer">
+                <div class="aui-dialog2-footer-actions">
+                    <button class="aui-button aui-button-primary" type="button" id="rule-save-btn">Сохранить</button>
+                    <button class="aui-button aui-button-link" type="button" id="rule-cancel-btn">Отмена</button>
+                </div>
+            </footer>
+        </section>
+    #end
+</div>
+</body>
+</html>
