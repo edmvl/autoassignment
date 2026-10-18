@@ -138,6 +138,34 @@
     white-space: nowrap;
 }
 
+/* Rule priority + drag handle */
+.priority-col {
+    width: 90px;
+    white-space: nowrap;
+    text-align: center;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: #6b778c;
+    user-select: none;
+    letter-spacing: -2px;
+}
+
+.priority-num {
+    color: #6b778c;
+    font-weight: 600;
+}
+
+#rules-table tbody tr {
+    cursor: grab;
+}
+
+#rules-table tbody tr.dragging {
+    opacity: 0.5;
+    background: #f4f5f7;
+}
+
 /* Self-contained modal (no dependency on AUI dialog2) */
 .autoassign-modal-overlay {
     position: fixed;

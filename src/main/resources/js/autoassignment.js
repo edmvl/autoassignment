@@ -321,8 +321,14 @@
         $('#no-rules').toggle(!rules || rules.length === 0);
         $('#rules-table').toggle(rules && rules.length > 0);
 
-        (rules || []).forEach(function (rule) {
-            var $row = $('<tr>');
+        (rules || []).forEach(function (rule, index) {
+            var $row = $('<tr>').attr('data-id', rule.id).attr('draggable', 'true');
+
+            var $priority = $('<td class="priority-col">');
+            $priority.append('<span class="drag-handle" title="Перетащите, чтобы изменить приоритет">&#8942;&#8942;</span> ');
+            $priority.append($('<span class="priority-num">').text(index + 1));
+            $row.append($priority);
+
             $row.append($('<td>').text(rule.name || '(без названия)'));
             $row.append($('<td>').text(userNames(rule.assignees)));
             $row.append($('<td>').text(userNames(rule.coAssignees)));
@@ -478,6 +484,31 @@
             });
     }
 
+    function renumberRows() {
+        $('#rules-table-body tr').each(function (index) {
+            $(this).find('.priority-num').text(index + 1);
+        });
+    }
+
+    function saveOrder() {
+        var ids = $('#rules-table-body tr').map(function () {
+            return $(this).data('id');
+        }).get();
+        if (!ids.length) {
+            return;
+        }
+        request({
+            method: 'POST',
+            url: restUrl('/reorder'),
+            data: JSON.stringify({ projectKey: CONFIG.projectKey, order: ids })
+        }).done(function () {
+            showMessage('success', 'Приоритет сохранён.');
+        }).fail(function (xhr) {
+            showMessage('error', 'Не удалось сохранить приоритет: ' + errorText(xhr));
+            reloadRules();
+        });
+    }
+
     function bindEvents() {
         ruleDialog = {
             show: function () { $('#rule-dialog').css('display', 'flex'); },
@@ -560,6 +591,51 @@
         $('#rule-conditions').on('click', '.remove-condition', function () {
             $(this).closest('.condition-row').remove();
         });
+
+        // Drag-and-drop rule ordering.
+        var dragRow = null;
+
+        $('#rules-table-body')
+            .on('dragstart', 'tr', function (e) {
+                dragRow = this;
+                $(this).addClass('dragging');
+                if (e.originalEvent && e.originalEvent.dataTransfer) {
+                    e.originalEvent.dataTransfer.effectAllowed = 'move';
+                    try {
+                        e.originalEvent.dataTransfer.setData('text/plain', 'row');
+                    } catch (x) {
+                        // ignore
+                    }
+                }
+            })
+            .on('dragover', 'tr', function (e) {
+                if (!dragRow || this === dragRow) {
+                    return;
+                }
+                e.preventDefault();
+                if (e.originalEvent && e.originalEvent.dataTransfer) {
+                    e.originalEvent.dataTransfer.dropEffect = 'move';
+                }
+                var rect = this.getBoundingClientRect();
+                var after = (e.originalEvent.clientY - rect.top) > rect.height / 2;
+                if (after) {
+                    $(this).after(dragRow);
+                } else {
+                    $(this).before(dragRow);
+                }
+                renumberRows();
+            })
+            .on('drop', 'tr', function (e) {
+                e.preventDefault();
+            })
+            .on('dragend', 'tr', function () {
+                if (!dragRow) {
+                    return;
+                }
+                $(dragRow).removeClass('dragging');
+                dragRow = null;
+                saveOrder();
+            });
     }
 
     function init() {

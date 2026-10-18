@@ -245,6 +245,21 @@ public class AssignmentConfigResource {
         }
     }
 
+    @POST
+    @Path("reorder")
+    public Response reorder(Map<String, Object> body) {
+        try {
+            String projectKey = asString(body.get("projectKey"));
+            requireProjectAdmin(projectKey);
+            ruleService.reorder(asIntList(body.get("order")));
+            return Response.ok().build();
+        } catch (WebApplicationException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            return Response.serverError().entity(errorMap(e)).build();
+        }
+    }
+
     private Map<String, Object> errorMap(Throwable e) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("error", e.getClass().getSimpleName());
@@ -300,6 +315,16 @@ public class AssignmentConfigResource {
         rule.setSortOrder(asInt(body.get("sortOrder")));
         rule.setEnabled(asBoolean(body.get("enabled")));
         return rule;
+    }
+
+    private List<Integer> asIntList(Object value) {
+        List<Integer> result = new ArrayList<>();
+        if (value instanceof Collection) {
+            for (Object item : (Collection<?>) value) {
+                result.add(asInt(item));
+            }
+        }
+        return result;
     }
 
     private List<String> asStringList(Object value) {

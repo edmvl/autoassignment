@@ -35,6 +35,7 @@
             <table class="aui" id="rules-table" style="width:100%">
                 <thead>
                 <tr>
+                    <th class="priority-col">Приоритет</th>
                     <th>Название</th>
                     <th>Исполнитель</th>
                     <th>Соисполнители</th>

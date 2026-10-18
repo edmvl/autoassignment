@@ -76,7 +76,11 @@ public class RuleServiceImpl implements RuleService {
         AssignmentRule entity = activeObjects.create(AssignmentRule.class);
         applyToEntity(entity, rule);
         if (rule.getSortOrder() <= 0) {
-            entity.setSortOrder(getRules(rule.getProjectKey()).size() + 1);
+            int max = 0;
+            for (RuleDto existing : getRules(rule.getProjectKey())) {
+                max = Math.max(max, existing.getSortOrder());
+            }
+            entity.setSortOrder(max + 1);
         }
         entity.save();
         return toDto(entity);
@@ -100,6 +104,25 @@ public class RuleServiceImpl implements RuleService {
         AssignmentRule entity = activeObjects.get(AssignmentRule.class, id);
         if (entity != null) {
             activeObjects.delete(entity);
+        }
+    }
+
+    @Override
+    public void reorder(List<Integer> ids) {
+        ensureSchema();
+        if (ids == null) {
+            return;
+        }
+        int order = 1;
+        for (Integer id : ids) {
+            if (id == null) {
+                continue;
+            }
+            AssignmentRule entity = activeObjects.get(AssignmentRule.class, id);
+            if (entity != null) {
+                entity.setSortOrder(order++);
+                entity.save();
+            }
         }
     }
 

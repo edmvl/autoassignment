@@ -18,4 +18,9 @@ public interface RuleService {
     RuleDto updateRule(int id, RuleDto rule);
 
     void deleteRule(int id);
+
+    /**
+     * Persists the given rule order: the first id gets sort order 1, the next 2, etc.
+     */
+    void reorder(List<Integer> ids);
 }
