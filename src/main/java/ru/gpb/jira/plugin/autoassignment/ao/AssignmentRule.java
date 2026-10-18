@@ -7,9 +7,8 @@ import net.java.ao.schema.Table;
 /**
  * Active Objects entity representing a single auto-assignment rule.
  *
- * A rule is evaluated against an issue on creation: if all of its
- * {@link #getConditions()} match the issue, the rule's target field
- * ({@link #getTargetType()}) is populated with {@link #getTargetValue()}.
+ * <p>A rule can set any combination of the assignee, co-assignee and watchers
+ * fields in one go. All lists are stored as comma separated user names.</p>
  */
 @Table("AO_AUTOASSIGN_RULE")
 public interface AssignmentRule extends Entity {
@@ -20,18 +19,17 @@ public interface AssignmentRule extends Entity {
     String getName();
     void setName(String name);
 
-    /**
-     * One of: ASSIGNEE, CO_ASSIGNEE, WATCHERS.
-     */
-    String getTargetType();
-    void setTargetType(String targetType);
-
-    /**
-     * Comma separated list of user names used to populate the target field.
-     */
     @StringLength(StringLength.UNLIMITED)
-    String getTargetValue();
-    void setTargetValue(String targetValue);
+    String getAssignees();
+    void setAssignees(String assignees);
+
+    @StringLength(StringLength.UNLIMITED)
+    String getCoAssignees();
+    void setCoAssignees(String coAssignees);
+
+    @StringLength(StringLength.UNLIMITED)
+    String getWatchers();
+    void setWatchers(String watchers);
 
     /**
      * JSON array of condition objects: [{fieldId, operator, value}, ...].

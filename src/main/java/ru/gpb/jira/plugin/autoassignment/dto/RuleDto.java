@@ -4,15 +4,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Data transfer object used both by the REST API and the evaluation engine.
+ * A single auto-assignment rule. One rule can set any combination of
+ * assignees, co-assignees and watchers.
  */
 public class RuleDto {
 
     private Integer id;
     private String projectKey;
     private String name;
-    private String targetType;
-    private List<String> targetUsers = new ArrayList<>();
+    private List<String> assignees = new ArrayList<>();
+    private List<String> coAssignees = new ArrayList<>();
+    private List<String> watchers = new ArrayList<>();
     private List<ConditionDto> conditions = new ArrayList<>();
     private int sortOrder;
     private boolean enabled = true;
@@ -44,20 +46,28 @@ public class RuleDto {
         this.name = name;
     }
 
-    public String getTargetType() {
-        return targetType;
+    public List<String> getAssignees() {
+        return assignees;
     }
 
-    public void setTargetType(String targetType) {
-        this.targetType = targetType;
+    public void setAssignees(List<String> assignees) {
+        this.assignees = assignees == null ? new ArrayList<>() : assignees;
     }
 
-    public List<String> getTargetUsers() {
-        return targetUsers;
+    public List<String> getCoAssignees() {
+        return coAssignees;
     }
 
-    public void setTargetUsers(List<String> targetUsers) {
-        this.targetUsers = targetUsers == null ? new ArrayList<>() : targetUsers;
+    public void setCoAssignees(List<String> coAssignees) {
+        this.coAssignees = coAssignees == null ? new ArrayList<>() : coAssignees;
+    }
+
+    public List<String> getWatchers() {
+        return watchers;
+    }
+
+    public void setWatchers(List<String> watchers) {
+        this.watchers = watchers == null ? new ArrayList<>() : watchers;
     }
 
     public List<ConditionDto> getConditions() {

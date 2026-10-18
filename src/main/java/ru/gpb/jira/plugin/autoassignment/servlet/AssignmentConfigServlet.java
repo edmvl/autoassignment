@@ -17,6 +17,7 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +28,7 @@ import java.util.Map;
 @Component
 public class AssignmentConfigServlet extends HttpServlet {
 
-    private static final String PLUGIN_KEY = "ru.gpb.jira.plugin.synchronizer";
+    private static final String PLUGIN_KEY = "ru.gpb.jira.plugin.autoassignment";
 
     private final TemplateRenderer templateRenderer;
     private final JiraAuthenticationContext authenticationContext;
@@ -52,6 +53,8 @@ public class AssignmentConfigServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        response.setContentType("text/html;charset=UTF-8");
+
         ApplicationUser user = authenticationContext.getLoggedInUser();
         if (user == null) {
             String destination = request.getRequestURI()
@@ -87,9 +90,14 @@ public class AssignmentConfigServlet extends HttpServlet {
             throws IOException {
         webResourceManager.requireResource("com.atlassian.auiplugin:ajs");
         webResourceManager.requireResource(PLUGIN_KEY + ":autoassignment-resources");
-        params.put("webResourceManager", webResourceManager);
+        String resourcesHtml = webResourceManager.getRequiredResources();
 
-        response.setContentType("text/html; charset=UTF-8");
-        templateRenderer.render("templates/autoassignment-config.vm", params, response.getWriter());
+        // Render the template to a buffer, then inject the web resources as raw HTML.
+        // The TemplateRenderer HTML-escapes velocity references (XSS protection), so
+        // we must bypass it for the web resource tags.
+        StringWriter buffer = new StringWriter();
+        templateRenderer.render("templates/autoassignment-config.vm", params, buffer);
+        String html = buffer.toString().replace("<!--AUTOASSIGN_RESOURCES-->", resourcesHtml);
+        response.getWriter().write(html);
     }
 }

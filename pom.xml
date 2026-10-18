@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>ru.gpb.jira.plugin</groupId>
-    <artifactId>synchronizer</artifactId>
+    <artifactId>autoassignment</artifactId>
     <version>0.1.15</version>
     <organization>
         <name>GPB</name>
         <url>https://gpb.ru/</url>
     </organization>
-    <name>Synchronizer</name>
-    <description>Synchronizer plugin for Atlassian JIRA.</description>
+    <name>autoassignment</name>
+    <description>autoassignment plugin for Atlassian JIRA.</description>
     <packaging>atlassian-plugin</packaging>
     <dependencies>
         <dependency>
@@ -230,6 +230,9 @@
                             org.eclipse.gemini.blueprint.*;resolution:="optional",
                             *
                         </Import-Package>
+                        <Export-Package>
+                            ru.gpb.jira.plugin.autoassignment.rest
+                        </Export-Package>
                         <Spring-Context>*</Spring-Context>
                     </instructions>
                 </configuration>

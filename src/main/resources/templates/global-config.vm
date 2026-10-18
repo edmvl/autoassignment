@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Auto Assignment — глобальные настройки</title>
+    <script>
+        window.AUTOASSIGN = window.AUTOASSIGN || {};
+    </script>
+    <!--AUTOASSIGN_RESOURCES-->
+</head>
+<body class="aui-page-focused aui-page-size-medium">
+<div class="autoassignment-container">
+    <h2>Автоматическое назначение — глобальные настройки</h2>
+
+    #if ($accessDenied)
+        <div class="aui-message error">
+            <p>Эта страница доступна только администратору JIRA.</p>
+        </div>
+    #else
+        <div id="message" style="display:none"></div>
+
+        <form class="aui">
+            <div class="field-group">
+                <label for="enabled-toggle">Включить автоматическое назначение</label>
+                <input class="checkbox" type="checkbox" id="enabled-toggle">
+            </div>
+            <div class="field-group">
+                <label for="coassignee-field">Поле «Соисполнитель»</label>
+                <select class="select" id="coassignee-field">
+                    <option value="">— не выбрано —</option>
+                </select>
+                <div class="description">Пользовательское поле типа «Выбор пользователя», в которое записываются соисполнители.</div>
+            </div>
+            <div class="field-group">
+                <button class="aui-button aui-button-primary" type="button" id="save-config-btn">Сохранить настройки</button>
+            </div>
+        </form>
+    #end
+</div>
+</body>
+</html>

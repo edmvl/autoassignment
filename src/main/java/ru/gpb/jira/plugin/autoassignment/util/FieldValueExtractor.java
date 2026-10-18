@@ -9,7 +9,9 @@ import com.atlassian.jira.issue.fields.CustomField;
 import com.atlassian.jira.project.version.Version;
 import com.atlassian.jira.user.ApplicationUser;
 
+import java.text.SimpleDateFormat;
 import java.util.Collection;
+import java.util.Date;
 
 /**
  * Extracts a string representation of a field value from an issue so it can be
@@ -61,11 +63,11 @@ public final class FieldValueExtractor {
             case IssueFieldConstants.LABELS:
                 return convert(issue.getLabels());
             case IssueFieldConstants.DUE_DATE:
-                return issue.getDueDate() == null ? null : issue.getDueDate().toString();
+                return convert(issue.getDueDate());
             case IssueFieldConstants.CREATED:
-                return issue.getCreated() == null ? null : issue.getCreated().toString();
+                return convert(issue.getCreated());
             case IssueFieldConstants.UPDATED:
-                return issue.getUpdated() == null ? null : issue.getUpdated().toString();
+                return convert(issue.getUpdated());
             default:
                 return null;
         }
@@ -103,6 +105,9 @@ public final class FieldValueExtractor {
                 sb.append(converted);
             }
             return sb.toString();
+        }
+        if (value instanceof Date) {
+            return new SimpleDateFormat("yyyy-MM-dd").format((Date) value);
         }
         return value.toString();
     }

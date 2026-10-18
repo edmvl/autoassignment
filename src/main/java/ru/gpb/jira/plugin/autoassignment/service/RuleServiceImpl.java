@@ -21,14 +21,37 @@ import java.util.List;
 public class RuleServiceImpl implements RuleService {
 
     private final ActiveObjects activeObjects;
+    private volatile boolean schemaReady = false;
 
     @Autowired
     public RuleServiceImpl(@ComponentImport ActiveObjects activeObjects) {
         this.activeObjects = activeObjects;
     }
 
+    /**
+     * Active Objects only adds missing columns; run a non-destructive migration once
+     * so that upgrades from older rule models get the new target columns.
+     */
+    private void ensureSchema() {
+        if (schemaReady) {
+            return;
+        }
+        synchronized (this) {
+            if (schemaReady) {
+                return;
+            }
+            try {
+                activeObjects.migrate(AssignmentRule.class);
+                schemaReady = true;
+            } catch (RuntimeException e) {
+                // Retry on the next call; do not fail the request.
+            }
+        }
+    }
+
     @Override
     public List<RuleDto> getRules(String projectKey) {
+        ensureSchema();
         AssignmentRule[] entities = activeObjects.find(AssignmentRule.class,
                 Query.select()
                         .where("PROJECT_KEY = ?", projectKey)
@@ -42,12 +65,14 @@ public class RuleServiceImpl implements RuleService {
 
     @Override
     public RuleDto getRule(int id) {
+        ensureSchema();
         AssignmentRule entity = activeObjects.get(AssignmentRule.class, id);
         return entity == null ? null : toDto(entity);
     }
 
     @Override
     public RuleDto createRule(RuleDto rule) {
+        ensureSchema();
         AssignmentRule entity = activeObjects.create(AssignmentRule.class);
         applyToEntity(entity, rule);
         if (rule.getSortOrder() <= 0) {
@@ -59,6 +84,7 @@ public class RuleServiceImpl implements RuleService {
 
     @Override
     public RuleDto updateRule(int id, RuleDto rule) {
+        ensureSchema();
         AssignmentRule entity = activeObjects.get(AssignmentRule.class, id);
         if (entity == null) {
             throw new IllegalArgumentException("Rule not found: " + id);
@@ -70,6 +96,7 @@ public class RuleServiceImpl implements RuleService {
 
     @Override
     public void deleteRule(int id) {
+        ensureSchema();
         AssignmentRule entity = activeObjects.get(AssignmentRule.class, id);
         if (entity != null) {
             activeObjects.delete(entity);
@@ -79,8 +106,9 @@ public class RuleServiceImpl implements RuleService {
     private void applyToEntity(AssignmentRule entity, RuleDto dto) {
         entity.setProjectKey(dto.getProjectKey());
         entity.setName(dto.getName());
-        entity.setTargetType(dto.getTargetType());
-        entity.setTargetValue(join(dto.getTargetUsers()));
+        entity.setAssignees(join(dto.getAssignees()));
+        entity.setCoAssignees(join(dto.getCoAssignees()));
+        entity.setWatchers(join(dto.getWatchers()));
         entity.setConditions(JsonUtil.toJson(dto.getConditions()));
         entity.setSortOrder(dto.getSortOrder());
         entity.setEnabled(dto.isEnabled());
@@ -91,8 +119,9 @@ public class RuleServiceImpl implements RuleService {
         dto.setId(entity.getID());
         dto.setProjectKey(entity.getProjectKey());
         dto.setName(entity.getName());
-        dto.setTargetType(entity.getTargetType());
-        dto.setTargetUsers(split(entity.getTargetValue()));
+        dto.setAssignees(split(entity.getAssignees()));
+        dto.setCoAssignees(split(entity.getCoAssignees()));
+        dto.setWatchers(split(entity.getWatchers()));
         dto.setConditions(JsonUtil.toList(entity.getConditions(), ConditionDto.class));
         dto.setSortOrder(entity.getSortOrder());
         dto.setEnabled(entity.isEnabled());

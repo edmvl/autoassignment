@@ -24,17 +24,15 @@ import ru.gpb.jira.plugin.autoassignment.util.FieldValueExtractor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * Evaluates rules on issue creation and fills Assignee, Co-assignee and Watchers.
+ * Any single rule may set any combination of these target fields.
  */
 @Component
 public class AssignmentEngineImpl implements AssignmentEngine {
-
-    public static final String TARGET_ASSIGNEE = "ASSIGNEE";
-    public static final String TARGET_CO_ASSIGNEE = "CO_ASSIGNEE";
-    public static final String TARGET_WATCHERS = "WATCHERS";
 
     private static final String MULTI_USER_PICKER = "com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker";
     private static final String SINGLE_USER_PICKER = "com.atlassian.jira.plugin.system.customfieldtypes:userpicker";
@@ -86,18 +84,29 @@ public class AssignmentEngineImpl implements AssignmentEngine {
 
         ApplicationUser actingUser = resolveActingUser(event, issue);
 
-        applyAssignee(issue, firstMatch(rules, TARGET_ASSIGNEE, issue), actingUser);
-        applyCoAssignee(issue, firstMatch(rules, TARGET_CO_ASSIGNEE, issue), actingUser);
-        applyWatchers(issue, firstMatch(rules, TARGET_WATCHERS, issue));
+        applyAssignee(issue, firstMatch(rules, issue, RuleDto::getAssignees), actingUser);
+        applyCoAssignee(issue, firstMatch(rules, issue, RuleDto::getCoAssignees), actingUser);
+        applyWatchers(issue, firstMatch(rules, issue, RuleDto::getWatchers));
     }
 
-    private RuleDto firstMatch(List<RuleDto> rules, String targetType, Issue issue) {
-        return rules.stream()
-                .filter(RuleDto::isEnabled)
-                .filter(rule -> targetType.equals(rule.getTargetType()))
-                .filter(rule -> allConditionsMatch(rule, issue))
-                .findFirst()
-                .orElse(null);
+    /**
+     * Returns the first enabled rule (in order) that defines the given target and
+     * whose conditions all match the issue.
+     */
+    private RuleDto firstMatch(List<RuleDto> rules, Issue issue, Function<RuleDto, List<String>> target) {
+        for (RuleDto rule : rules) {
+            if (!rule.isEnabled()) {
+                continue;
+            }
+            List<String> values = target.apply(rule);
+            if (values == null || values.isEmpty()) {
+                continue;
+            }
+            if (allConditionsMatch(rule, issue)) {
+                return rule;
+            }
+        }
+        return null;
     }
 
     private boolean allConditionsMatch(RuleDto rule, Issue issue) {
@@ -108,7 +117,7 @@ public class AssignmentEngineImpl implements AssignmentEngine {
         for (ConditionDto condition : conditions) {
             String actual = FieldValueExtractor.getFieldValue(
                     issue, condition.getFieldId(), customFieldManager);
-            if (!ConditionMatcher.matches(actual, condition.getOperator(), condition.getValue())) {
+            if (!ConditionMatcher.matches(actual, condition.getOperator(), condition.getValues())) {
                 return false;
             }
         }
@@ -119,7 +128,7 @@ public class AssignmentEngineImpl implements AssignmentEngine {
         if (rule == null) {
             return;
         }
-        List<ApplicationUser> users = resolveUsers(rule.getTargetUsers());
+        List<ApplicationUser> users = resolveUsers(rule.getAssignees());
         if (users.isEmpty()) {
             return;
         }
@@ -145,7 +154,7 @@ public class AssignmentEngineImpl implements AssignmentEngine {
         if (customField == null) {
             return;
         }
-        List<ApplicationUser> users = resolveUsers(rule.getTargetUsers());
+        List<ApplicationUser> users = resolveUsers(rule.getCoAssignees());
         if (users.isEmpty()) {
             return;
         }
@@ -177,8 +186,7 @@ public class AssignmentEngineImpl implements AssignmentEngine {
         if (rule == null) {
             return;
         }
-        List<ApplicationUser> users = resolveUsers(rule.getTargetUsers());
-        for (ApplicationUser watcher : users) {
+        for (ApplicationUser watcher : resolveUsers(rule.getWatchers())) {
             try {
                 if (!watcherManager.isWatching(watcher, issue)) {
                     watcherManager.startWatching(watcher, issue);

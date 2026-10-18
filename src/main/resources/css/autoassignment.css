@@ -13,27 +13,121 @@
     align-items: center;
 }
 
+/* Conditions: grid so controls never overflow the dialog */
 .condition-row {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.7fr) auto;
     gap: 8px;
-    margin-bottom: 8px;
+    align-items: start;
+    margin-bottom: 10px;
 }
 
-.condition-row .condition-field {
-    width: 40%;
+.condition-row .condition-cell {
+    min-width: 0;
 }
 
-.condition-row .condition-operator {
-    width: 28%;
-}
-
-.condition-row .condition-value {
-    flex: 1;
+.condition-row .condition-cell .text,
+.condition-row .condition-cell .select {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .condition-row .remove-condition {
     flex-shrink: 0;
+}
+
+/* Compact searchable multi-select (tags + dropdown) */
+.ms {
+    position: relative;
+}
+
+.ms-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    padding: 4px 6px;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    background: #fff;
+    cursor: text;
+}
+
+.ms-control:focus-within {
+    border-color: #4c9aff;
+    box-shadow: 0 0 0 1px #4c9aff;
+}
+
+.ms-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #deebff;
+    color: #0747a6;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 12px;
+    max-width: 100%;
+}
+
+.ms-tag-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+}
+
+.ms-remove {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.ms-filter {
+    flex: 1;
+    min-width: 90px;
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 2px;
+    font-size: 14px;
+}
+
+.ms-dropdown {
+    position: absolute;
+    z-index: 4000;
+    left: 0;
+    right: 0;
+    top: 100%;
+    margin-top: 2px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #dfe1e6;
+    border-radius: 3px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 6px;
+}
+
+.ms-empty {
+    color: #6b778c;
+    font-style: italic;
+    padding: 4px;
+}
+
+.check-item {
+    display: block;
+    padding: 3px 4px;
+    cursor: pointer;
+    font-weight: normal;
+}
+
+.check-item:hover {
+    background: #f4f5f7;
+}
+
+.check-item input {
+    margin-right: 6px;
 }
 
 #rules-table td, #rules-table th {
@@ -42,4 +136,63 @@
 
 .rule-actions {
     white-space: nowrap;
+}
+
+/* Self-contained modal (no dependency on AUI dialog2) */
+.autoassign-modal-overlay {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    z-index: 3000;
+    padding: 40px 16px;
+    overflow-y: auto;
+}
+
+.autoassign-modal {
+    background: #fff;
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 860px;
+    margin: auto;
+}
+
+.autoassign-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #dfe1e6;
+}
+
+.autoassign-modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.autoassign-modal-close {
+    font-size: 22px;
+    line-height: 1;
+    padding: 0 6px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.autoassign-modal-body {
+    padding: 20px;
+    overflow: visible;
+}
+
+.autoassign-modal-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 16px 20px;
+    border-top: 1px solid #dfe1e6;
 }

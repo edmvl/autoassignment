@@ -6,7 +6,7 @@
     <script>
         window.AUTOASSIGN = { projectKey: "$!projectKey" };
     </script>
-    $webResourceManager.getRequiredResources()
+    <!--AUTOASSIGN_RESOURCES-->
 </head>
 <body class="aui-page-focused aui-page-size-medium">
 <div class="autoassignment-container">
@@ -28,26 +28,6 @@
         <div id="message" style="display:none"></div>
 
         <section class="autoassignment-section">
-            <h3>Глобальные настройки</h3>
-            <form class="aui">
-                <div class="field-group">
-                    <label for="enabled-toggle">Включить автоматическое назначение</label>
-                    <input class="checkbox" type="checkbox" id="enabled-toggle">
-                </div>
-                <div class="field-group">
-                    <label for="coassignee-field">Поле «Соисполнитель»</label>
-                    <select class="select" id="coassignee-field">
-                        <option value="">— не выбрано —</option>
-                    </select>
-                    <div class="description">Пользовательское поле типа «Выбор пользователя», в которое записываются соисполнители.</div>
-                </div>
-                <div class="field-group">
-                    <button class="aui-button aui-button-primary" type="button" id="save-config-btn">Сохранить настройки</button>
-                </div>
-            </form>
-        </section>
-
-        <section class="autoassignment-section">
             <div class="autoassignment-section-header">
                 <h3>Правила</h3>
                 <button class="aui-button aui-button-primary" type="button" id="add-rule-btn">Добавить правило</button>
@@ -56,8 +36,9 @@
                 <thead>
                 <tr>
                     <th>Название</th>
-                    <th>Целевое поле</th>
-                    <th>Пользователи</th>
+                    <th>Исполнитель</th>
+                    <th>Соисполнители</th>
+                    <th>Наблюдатели</th>
                     <th>Условия</th>
                     <th>Активно</th>
                     <th></th>
@@ -66,56 +47,67 @@
                 <tbody id="rules-table-body"></tbody>
             </table>
             <div id="no-rules" class="aui-message info" style="display:none">
-                <p>Правила не заданы. Добавьте правило, чтобы автоматически заполнять Исполнителя, Соисполнителя и Наблюдателей при создании задачи.</p>
+                <p>Правила не заданы. Добавьте правило, чтобы автоматически заполнять Исполнителя, Соисполнителей и Наблюдателей при создании задачи.</p>
             </div>
         </section>
 
-        <section id="rule-dialog" class="aui-dialog2 aui-dialog2-large aui-layer" role="dialog" aria-hidden="true">
-            <header class="aui-dialog2-header">
-                <h2 class="aui-dialog2-header-main" id="rule-dialog-title">Добавить правило</h2>
-                <a class="aui-dialog2-header-close">
-                    <span class="aui-icon aui-icon-small aui-iconfont-close-dialog">Закрыть</span>
-                </a>
-            </header>
-            <div class="aui-dialog2-content">
-                <form class="aui" id="rule-form">
-                    <div class="field-group">
-                        <label for="rule-name">Название правила</label>
-                        <input class="text long-field" type="text" id="rule-name" name="name"
-                               placeholder="Например: Компонент = Backend">
-                    </div>
-                    <div class="field-group">
-                        <label for="rule-target-type">Целевое поле</label>
-                        <select class="select" id="rule-target-type">
-                            <option value="ASSIGNEE">Исполнитель</option>
-                            <option value="CO_ASSIGNEE">Соисполнитель</option>
-                            <option value="WATCHERS">Наблюдатели</option>
-                        </select>
-                    </div>
-                    <div class="field-group">
-                        <label for="rule-target-users">Пользователи</label>
-                        <select class="select" id="rule-target-users" multiple="multiple" size="5"></select>
-                        <div class="description">Для поля «Исполнитель» выберите одного пользователя, для остальных — одного или несколько.</div>
-                    </div>
-                    <div class="field-group">
-                        <label>Условия</label>
-                        <div id="rule-conditions"></div>
-                        <button class="aui-button" type="button" id="add-condition-btn">Добавить условие</button>
-                        <div class="description">Правило сработает, если выполнены все условия. Если условий нет — правило применяется всегда.</div>
-                    </div>
-                    <div class="field-group">
-                        <label for="rule-enabled">Активно</label>
-                        <input class="checkbox" type="checkbox" id="rule-enabled" checked="checked">
-                    </div>
-                </form>
-            </div>
-            <footer class="aui-dialog2-footer">
-                <div class="aui-dialog2-footer-actions">
+        <div id="rule-dialog" class="autoassign-modal-overlay" style="display:none">
+            <div class="autoassign-modal" role="dialog" aria-modal="true" aria-labelledby="rule-dialog-title">
+                <div class="autoassign-modal-header">
+                    <h2 id="rule-dialog-title">Добавить правило</h2>
+                    <button type="button" class="aui-button aui-button-link autoassign-modal-close"
+                            id="rule-dialog-close" aria-label="Закрыть">&times;</button>
+                </div>
+                <div class="autoassign-modal-body">
+                    <form class="aui" id="rule-form">
+                        <div class="field-group">
+                            <label for="rule-name">Название правила</label>
+                            <input class="text long-field" type="text" id="rule-name" name="name"
+                                   placeholder="Например: Компонент = Backend">
+                        </div>
+                        <div class="field-group">
+                            <label for="rule-assignees">Исполнитель</label>
+                            <select class="select" id="rule-assignees"></select>
+                            <div class="description">Необязательно. Один пользователь.</div>
+                        </div>
+                        <div class="field-group">
+                            <label>Соисполнители</label>
+                            <div class="ms" id="rule-coassignees">
+                                <div class="ms-control">
+                                    <input type="text" class="ms-filter" placeholder="Поиск пользователя...">
+                                </div>
+                                <div class="ms-dropdown" style="display:none"></div>
+                            </div>
+                            <div class="description">Необязательно. Начните вводить имя для поиска.</div>
+                        </div>
+                        <div class="field-group">
+                            <label>Наблюдатели</label>
+                            <div class="ms" id="rule-watchers">
+                                <div class="ms-control">
+                                    <input type="text" class="ms-filter" placeholder="Поиск пользователя...">
+                                </div>
+                                <div class="ms-dropdown" style="display:none"></div>
+                            </div>
+                            <div class="description">Необязательно. Начните вводить имя для поиска.</div>
+                        </div>
+                        <div class="field-group">
+                            <label>Условия</label>
+                            <div id="rule-conditions"></div>
+                            <button class="aui-button" type="button" id="add-condition-btn">Добавить условие</button>
+                            <div class="description">Правило сработает, если выполнены все условия. Если условий нет — правило применяется всегда.</div>
+                        </div>
+                        <div class="field-group">
+                            <label for="rule-enabled">Активно</label>
+                            <input class="checkbox" type="checkbox" id="rule-enabled" checked="checked">
+                        </div>
+                    </form>
+                </div>
+                <div class="autoassign-modal-footer">
                     <button class="aui-button aui-button-primary" type="button" id="rule-save-btn">Сохранить</button>
                     <button class="aui-button aui-button-link" type="button" id="rule-cancel-btn">Отмена</button>
                 </div>
-            </footer>
-        </section>
+            </div>
+        </div>
     #end
 </div>
 </body>
