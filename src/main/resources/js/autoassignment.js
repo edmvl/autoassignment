@@ -272,13 +272,59 @@
 
     // ---------------------------------------------------------------- fields
 
-    function buildFieldSelect() {
-        var html = '<select class="select condition-field">';
+    function buildFieldPicker() {
+        return '<div class="field-picker">' +
+            '<button type="button" class="field-picker-btn">' +
+            '<span class="field-picker-label">Выберите поле</span>' +
+            '<span class="field-picker-caret">&#9662;</span>' +
+            '</button>' +
+            '<input type="hidden" class="condition-field">' +
+            '<div class="field-picker-dropdown" style="display:none">' +
+            '<input type="text" class="text field-picker-search" placeholder="Поиск поля..." autocomplete="off">' +
+            '<div class="field-picker-options"></div>' +
+            '</div>' +
+            '</div>';
+    }
+
+    function updateFieldPickerLabel($row, fieldId) {
+        var name = fieldId ? fieldName(fieldId) : 'Выберите поле';
+        $row.find('.field-picker-label').text(name);
+    }
+
+    function renderFieldOptions($picker, term) {
+        var $options = $picker.find('.field-picker-options');
+        var lower = String(term || '').toLowerCase();
+        var current = $picker.find('.condition-field').val();
+        $options.empty();
+        var count = 0;
         state.fields.forEach(function (field) {
-            html += '<option value="' + escapeHtml(field.id) + '">' + escapeHtml(field.name) + '</option>';
+            var haystack = (field.name + ' ' + field.id).toLowerCase();
+            if (lower && haystack.indexOf(lower) < 0) {
+                return;
+            }
+            count += 1;
+            $('<div class="field-picker-option"></div>')
+                .attr('data-id', field.id)
+                .toggleClass('selected', field.id === current)
+                .text(field.name)
+                .appendTo($options);
         });
-        html += '</select>';
-        return html;
+        if (!count) {
+            $options.append('<div class="field-picker-empty">Ничего не найдено</div>');
+        }
+    }
+
+    function openFieldPicker($picker) {
+        var $search = $picker.find('.field-picker-search');
+        $search.val('');
+        renderFieldOptions($picker, '');
+        $picker.find('.field-picker-dropdown').show();
+        $search.trigger('focus');
+    }
+
+    function closeFieldPickers() {
+        $('.field-picker-dropdown').hide();
+        $('.field-picker-search').val('');
     }
 
     function buildOperatorOptions() {
@@ -305,7 +351,7 @@
 
         var $row = $(
             '<div class="condition-row">' +
-            '  <div class="condition-cell">' + buildFieldSelect() + '</div>' +
+            '  <div class="condition-cell">' + buildFieldPicker() + '</div>' +
             '  <div class="condition-cell"><select class="select condition-operator">' + buildOperatorOptions() + '</select></div>' +
             '  <div class="condition-cell">' +
             '    <input class="text condition-value" type="text" placeholder="Значение">' +
@@ -318,9 +364,13 @@
             '</div>'
         );
 
-        if (condition.fieldId) {
-            $row.find('.condition-field').val(condition.fieldId);
+        var fieldId = condition.fieldId;
+        if (!fieldId && state.fields.length) {
+            fieldId = state.fields[0].id;
         }
+        $row.find('.condition-field').val(fieldId);
+        updateFieldPickerLabel($row, fieldId);
+
         if (condition.operator) {
             $row.find('.condition-operator').val(condition.operator);
         }
@@ -331,9 +381,8 @@
 
         $('#rule-conditions').append($row);
 
-        var currentFieldId = $row.find('.condition-field').val();
-        applyDateInput($row, currentFieldId);
-        loadFieldValues($row, currentFieldId, selectedValues);
+        applyDateInput($row, fieldId);
+        loadFieldValues($row, fieldId, selectedValues);
     }
 
     function isDateField(fieldId) {
@@ -483,7 +532,7 @@
         } else {
             var values = condition.values || (condition.value ? [condition.value] : []);
             text = fieldName(condition.fieldId) + ' ' + op + ' '
-                + values.map(function (v) { return displayValue(condition.fieldId, v); }).join(' / ');
+                + values.map(function (v) { return displayValue(condition.fieldId, v); }).join(', ');
         }
         return $('<span class="condition-chip">').text(text);
     }
@@ -557,6 +606,14 @@
         $('.ms-dropdown').hide();
         $('.ms-filter').val('');
         $('.ms-dropdown .check-item').show();
+        closeFieldPickers();
+    }
+
+    function clearMsFilter($ms) {
+        $ms.find('.ms-filter').val('');
+        if ($ms.data('source') !== 'async') {
+            $ms.find('.ms-dropdown .check-item').show();
+        }
     }
 
     function openCreateDialog() {
@@ -787,9 +844,11 @@
                     $ms.data('selectedValues', map);
                     renderAsyncTags($ms);
                 }
+                clearMsFilter($ms);
                 return;
             }
             updateMsTags($ms);
+            clearMsFilter($ms);
         });
 
         $(document).on('click', function (e) {
@@ -800,11 +859,39 @@
 
         $('#add-condition-btn').on('click', function () { addConditionRow(); });
 
-        $('#rule-conditions').on('change', '.condition-field', function () {
-            var $row = $(this).closest('.condition-row');
+        // Searchable field picker.
+        $(document).on('click', '.field-picker-btn', function (e) {
+            e.stopPropagation();
+            var $picker = $(this).closest('.field-picker');
+            var wasOpen = $picker.find('.field-picker-dropdown').is(':visible');
+            closeFieldPickers();
+            if (!wasOpen) {
+                openFieldPicker($picker);
+            }
+        });
+
+        $(document).on('input', '.field-picker-search', function () {
+            var $picker = $(this).closest('.field-picker');
+            renderFieldOptions($picker, $(this).val());
+        });
+
+        $(document).on('click', '.field-picker-option', function (e) {
+            e.stopPropagation();
+            var $picker = $(this).closest('.field-picker');
+            var $row = $picker.closest('.condition-row');
+            var fieldId = $(this).attr('data-id');
+            $row.find('.condition-field').val(fieldId);
+            updateFieldPickerLabel($row, fieldId);
+            closeFieldPickers();
             $row.find('.condition-value').val('');
-            applyDateInput($row, $(this).val());
-            loadFieldValues($row, $(this).val(), null);
+            applyDateInput($row, fieldId);
+            loadFieldValues($row, fieldId, null);
+        });
+
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest('.field-picker').length) {
+                closeFieldPickers();
+            }
         });
 
         $('#rule-conditions').on('change', '.condition-operator', function () {
