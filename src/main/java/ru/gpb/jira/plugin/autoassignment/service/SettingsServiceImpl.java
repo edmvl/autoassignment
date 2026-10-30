@@ -6,6 +6,9 @@ import com.atlassian.sal.api.pluginsettings.PluginSettingsFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Default implementation backed by global plugin settings.
  */
@@ -51,5 +54,47 @@ public class SettingsServiceImpl implements SettingsService {
         } else {
             settings().put(KEY_CO_ASSIGNEE_FIELD, fieldId);
         }
+    }
+
+    @Override
+    public List<String> getConditionFieldIds() {
+        // A separate "configured" flag distinguishes "never configured" (all fields)
+        // from an explicitly empty selection (no fields).
+        Object configured = settings().get(KEY_CONDITION_FIELDS_SET);
+        if (configured == null || !Boolean.parseBoolean(String.valueOf(configured))) {
+            return null;
+        }
+        List<String> result = new ArrayList<>();
+        Object value = settings().get(KEY_CONDITION_FIELDS);
+        if (value != null) {
+            for (String id : String.valueOf(value).split(",")) {
+                String trimmed = id.trim();
+                if (!trimmed.isEmpty()) {
+                    result.add(trimmed);
+                }
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public void setConditionFieldIds(List<String> fieldIds) {
+        if (fieldIds == null) {
+            settings().remove(KEY_CONDITION_FIELDS);
+            settings().remove(KEY_CONDITION_FIELDS_SET);
+            return;
+        }
+        StringBuilder joined = new StringBuilder();
+        for (String fieldId : fieldIds) {
+            if (fieldId == null || fieldId.trim().isEmpty()) {
+                continue;
+            }
+            if (joined.length() > 0) {
+                joined.append(',');
+            }
+            joined.append(fieldId.trim());
+        }
+        settings().put(KEY_CONDITION_FIELDS, joined.toString());
+        settings().put(KEY_CONDITION_FIELDS_SET, "true");
     }
 }

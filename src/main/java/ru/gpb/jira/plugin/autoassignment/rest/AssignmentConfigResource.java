@@ -53,6 +53,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,14 +116,26 @@ public class AssignmentConfigResource {
 
     @GET
     @Path("fields")
-    public Response getFields() {
+    public Response getFields(@QueryParam("all") Boolean all) {
         requireLoggedIn();
+        boolean includeAll = Boolean.TRUE.equals(all);
+        if (includeAll) {
+            // The full field list is only needed by the global administrator page
+            // (to choose the condition fields and the co-assignee field).
+            requireGlobalAdmin();
+        }
+        // null = the administrator has not restricted the list yet (all fields).
+        List<String> configured = includeAll ? null : settingsService.getConditionFieldIds();
+        Set<String> allowed = configured == null ? null : new HashSet<>(configured);
         List<Map<String, Object>> fields = new ArrayList<>();
         try {
             for (NavigableField field : fieldManager.getAllAvailableNavigableFields()) {
                 // The project is an implicit part of every rule (rules are stored per project),
                 // so it must not be offered as a selectable condition field.
                 if (IssueFieldConstants.PROJECT.equals(field.getId())) {
+                    continue;
+                }
+                if (allowed != null && !allowed.contains(field.getId())) {
                     continue;
                 }
                 Map<String, Object> item = new LinkedHashMap<>();
@@ -218,6 +231,9 @@ public class AssignmentConfigResource {
         requireGlobalAdmin();
         settingsService.setEnabled(asBoolean(body.get("enabled")));
         settingsService.setCoAssigneeFieldId(asString(body.get("coAssigneeFieldId")));
+        if (body.containsKey("conditionFieldIds")) {
+            settingsService.setConditionFieldIds(asStringList(body.get("conditionFieldIds")));
+        }
         return Response.ok(settingsMap()).build();
     }
 
@@ -305,6 +321,7 @@ public class AssignmentConfigResource {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("enabled", settingsService.isEnabled());
         map.put("coAssigneeFieldId", settingsService.getCoAssigneeFieldId());
+        map.put("conditionFieldIds", settingsService.getConditionFieldIds());
         return map;
     }
 
@@ -322,6 +339,9 @@ public class AssignmentConfigResource {
             for (ConditionDto condition : rule.getConditions()) {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("fieldId", condition.getFieldId());
+                // The field name is included so the rules page can show conditions on
+                // fields that are no longer offered in the picker.
+                item.put("fieldName", fieldName(condition.getFieldId()));
                 item.put("operator", condition.getOperator());
                 item.put("values", condition.getValues());
                 conditions.add(item);
@@ -562,6 +582,18 @@ public class AssignmentConfigResource {
             return ((CustomField) field).getCustomFieldType().getKey();
         }
         return "system";
+    }
+
+    private String fieldName(String fieldId) {
+        if (fieldId == null) {
+            return null;
+        }
+        try {
+            NavigableField field = fieldManager.getNavigableField(fieldId);
+            return field == null ? fieldId : field.getName();
+        } catch (RuntimeException e) {
+            return fieldId;
+        }
     }
 
     private ApplicationUser requireLoggedIn() {

@@ -286,16 +286,20 @@
             '</div>';
     }
 
-    function updateFieldPickerLabel($row, fieldId) {
-        var name = fieldId ? fieldName(fieldId) : 'Выберите поле';
-        $row.find('.field-picker-label').text(name);
+    function updateFieldPickerLabel($row, fieldId, fallbackName) {
+        var name = fallbackName || (fieldId ? fieldName(fieldId) : '');
+        $row.find('.field-picker-label').text(name || 'Выберите поле');
     }
 
     function renderFieldOptions($picker, term) {
         var $options = $picker.find('.field-picker-options');
+        $options.empty();
+        if (!state.fields.length) {
+            $options.append('<div class="field-picker-empty">Нет доступных полей</div>');
+            return;
+        }
         var lower = String(term || '').toLowerCase();
         var current = $picker.find('.condition-field').val();
-        $options.empty();
         var count = 0;
         state.fields.forEach(function (field) {
             var haystack = (field.name + ' ' + field.id).toLowerCase();
@@ -369,7 +373,7 @@
             fieldId = state.fields[0].id;
         }
         $row.find('.condition-field').val(fieldId);
-        updateFieldPickerLabel($row, fieldId);
+        updateFieldPickerLabel($row, fieldId, condition.fieldName);
 
         if (condition.operator) {
             $row.find('.condition-operator').val(condition.operator);
@@ -526,12 +530,13 @@
 
     function conditionChip(condition) {
         var op = OPERATOR_LABELS[condition.operator] || condition.operator;
+        var name = condition.fieldName || fieldName(condition.fieldId);
         var text;
         if (condition.operator === 'IS_EMPTY' || condition.operator === 'IS_NOT_EMPTY') {
-            text = fieldName(condition.fieldId) + ' ' + op;
+            text = name + ' ' + op;
         } else {
             var values = condition.values || (condition.value ? [condition.value] : []);
-            text = fieldName(condition.fieldId) + ' ' + op + ' '
+            text = name + ' ' + op + ' '
                 + values.map(function (v) { return displayValue(condition.fieldId, v); }).join(', ');
         }
         return $('<span class="condition-chip">').text(text);

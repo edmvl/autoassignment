@@ -32,6 +32,17 @@
                 <div class="description">Пользовательское поле типа «Выбор пользователя», в которое записываются соисполнители.</div>
             </div>
             <div class="field-group">
+                <label for="field-search">Поля в условиях правил</label>
+                <input class="text field-list-search" type="text" id="field-search" placeholder="Поиск поля..." autocomplete="off">
+                <div id="field-list" class="field-list"></div>
+                <div class="field-list-actions">
+                    <button class="aui-button aui-button-link" type="button" id="fields-select-all">Выбрать все</button>
+                    <button class="aui-button aui-button-link" type="button" id="fields-clear-all">Снять все</button>
+                </div>
+                <div id="field-list-count" class="field-list-count"></div>
+                <div class="description">Отметьте поля, которые будут доступны при настройке условий правил. На странице правил отображаются только отмеченные поля.</div>
+            </div>
+            <div class="field-group">
                 <button class="aui-button aui-button-primary" type="button" id="save-config-btn">Сохранить настройки</button>
             </div>
         </form>
