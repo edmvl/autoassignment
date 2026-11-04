@@ -15,6 +15,13 @@
         IS_NOT_EMPTY: 'не пусто'
     };
 
+    var ACTION_LABELS = {
+        CREATED: 'Добавлено',
+        UPDATED: 'Изменено',
+        DELETED: 'Удалено',
+        REORDERED: 'Приоритет'
+    };
+
     var state = {
         fields: [],
         editingId: null
@@ -603,6 +610,65 @@
         });
     }
 
+    // --------------------------------------------------------------- history
+
+    function formatDateTime(millis) {
+        if (!millis) {
+            return '';
+        }
+        var date = new Date(millis);
+        function pad(value) {
+            return value < 10 ? '0' + value : String(value);
+        }
+        return pad(date.getDate()) + '.' + pad(date.getMonth() + 1) + '.' + date.getFullYear()
+            + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+    }
+
+    function renderHistory(entries) {
+        var $list = $('#history-list');
+        $list.empty();
+        $('#no-history').toggle(!entries || entries.length === 0);
+        (entries || []).forEach(function (entry) {
+            var action = String(entry.action || '');
+            var $item = $('<div class="history-item">');
+
+            var $head = $('<div class="history-head">');
+            $head.append($('<span class="history-action"></span>')
+                .addClass('history-action-' + action.toLowerCase())
+                .text(ACTION_LABELS[action] || action));
+            $head.append($('<span class="history-rule">')
+                .text(entry.ruleName || ('Правило #' + entry.ruleId)));
+            $head.append($('<span class="history-time">').text(formatDateTime(entry.changedAt)));
+            $item.append($head);
+
+            var who = entry.userDisplayName || entry.username;
+            if (who) {
+                $item.append($('<div class="history-user">').text('Изменил: ' + who));
+            }
+
+            if (entry.details && entry.details.length) {
+                var $details = $('<ul class="history-details">');
+                entry.details.forEach(function (line) {
+                    $details.append($('<li>').text(line));
+                });
+                $item.append($details);
+            }
+            $list.append($item);
+        });
+    }
+
+    function loadHistory() {
+        if (!CONFIG.projectKey) {
+            renderHistory([]);
+            return;
+        }
+        getData(restUrl('/history?projectKey=' + encodeURIComponent(CONFIG.projectKey) + '&limit=100'))
+            .done(renderHistory)
+            .fail(function (xhr) {
+                showMessage('error', 'Не удалось загрузить историю изменений: ' + errorText(xhr));
+            });
+    }
+
     // ---------------------------------------------------------------- dialog
 
     var ruleDialog = null;
@@ -687,6 +753,7 @@
                 closeDropdowns();
                 showMessage('success', 'Правило сохранено.');
                 reloadRules();
+                loadHistory();
             })
             .fail(function (xhr) {
                 showMessage('error', 'Не удалось сохранить правило: ' + errorText(xhr));
@@ -704,6 +771,7 @@
         }).done(function () {
             showMessage('success', 'Правило удалено.');
             reloadRules();
+            loadHistory();
         }).fail(function (xhr) {
             showMessage('error', 'Не удалось удалить правило: ' + errorText(xhr));
         });
@@ -750,6 +818,7 @@
             data: JSON.stringify({ projectKey: CONFIG.projectKey, order: ids })
         }).done(function () {
             showMessage('success', 'Приоритет сохранён.');
+            loadHistory();
         }).fail(function (xhr) {
             showMessage('error', 'Не удалось сохранить приоритет: ' + errorText(xhr));
             reloadRules();
@@ -967,6 +1036,7 @@
 
         loadFields();
         reloadRules();
+        loadHistory();
     }
 
     $(document).ready(init);

@@ -93,7 +93,13 @@ public class RuleServiceImpl implements RuleService {
         if (entity == null) {
             throw new IllegalArgumentException("Rule not found: " + id);
         }
+        int existingSortOrder = entity.getSortOrder();
         applyToEntity(entity, rule);
+        // The configuration page does not send sortOrder; keep the current priority
+        // instead of silently moving the rule to the top.
+        if (rule.getSortOrder() <= 0) {
+            entity.setSortOrder(existingSortOrder);
+        }
         entity.save();
         return toDto(entity);
     }

@@ -36,8 +36,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import ru.gpb.jira.plugin.autoassignment.dto.ConditionDto;
 import ru.gpb.jira.plugin.autoassignment.dto.RuleDto;
+import ru.gpb.jira.plugin.autoassignment.dto.RuleHistoryDto;
+import ru.gpb.jira.plugin.autoassignment.service.RuleHistoryService;
 import ru.gpb.jira.plugin.autoassignment.service.RuleService;
 import ru.gpb.jira.plugin.autoassignment.service.SettingsService;
+import ru.gpb.jira.plugin.autoassignment.util.RuleChangeDescriber;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -75,6 +78,7 @@ public class AssignmentConfigResource {
 
     private final RuleService ruleService;
     private final SettingsService settingsService;
+    private final RuleHistoryService ruleHistoryService;
     private final FieldManager fieldManager;
     private final CustomFieldManager customFieldManager;
     private final UserManager userManager;
@@ -90,6 +94,7 @@ public class AssignmentConfigResource {
     public AssignmentConfigResource(
             RuleService ruleService,
             SettingsService settingsService,
+            RuleHistoryService ruleHistoryService,
             @ComponentImport FieldManager fieldManager,
             @ComponentImport CustomFieldManager customFieldManager,
             @ComponentImport UserManager userManager,
@@ -102,6 +107,7 @@ public class AssignmentConfigResource {
             @ComponentImport LabelManager labelManager) {
         this.ruleService = ruleService;
         this.settingsService = settingsService;
+        this.ruleHistoryService = ruleHistoryService;
         this.fieldManager = fieldManager;
         this.customFieldManager = customFieldManager;
         this.userManager = userManager;
@@ -248,14 +254,32 @@ public class AssignmentConfigResource {
         return Response.ok(result).build();
     }
 
+    /**
+     * Returns the rule change history for the project, newest first.
+     */
+    @GET
+    @Path("history")
+    public Response getHistory(@QueryParam("projectKey") String projectKey,
+                               @QueryParam("limit") Integer limit) {
+        requireProjectAdmin(projectKey);
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (RuleHistoryDto entry : ruleHistoryService.getHistory(projectKey, limit == null ? 0 : limit)) {
+            result.add(historyMap(entry));
+        }
+        return Response.ok(result).build();
+    }
+
     @POST
     @Path("rules")
     public Response createRule(Map<String, Object> body) {
         try {
             RuleDto dto = ruleFromMap(body);
             requireProjectAdmin(dto.getProjectKey());
+            RuleDto created = ruleService.createRule(dto);
+            ruleHistoryService.log(created.getProjectKey(), created.getId(), created.getName(),
+                    RuleHistoryService.ACTION_CREATED, describer().describeSnapshot(created));
             return Response.status(Response.Status.CREATED)
-                    .entity(ruleMap(ruleService.createRule(dto))).build();
+                    .entity(ruleMap(created)).build();
         } catch (WebApplicationException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -269,7 +293,17 @@ public class AssignmentConfigResource {
         try {
             RuleDto dto = ruleFromMap(body);
             requireProjectAdmin(dto.getProjectKey());
-            return Response.ok(ruleMap(ruleService.updateRule(id, dto))).build();
+            RuleDto before = ruleService.getRule(id);
+            if (before == null) {
+                throw new IllegalArgumentException("Rule not found: " + id);
+            }
+            RuleDto updated = ruleService.updateRule(id, dto);
+            List<String> details = describer().describeChanges(before, updated);
+            if (!details.isEmpty()) {
+                ruleHistoryService.log(before.getProjectKey(), id, updated.getName(),
+                        RuleHistoryService.ACTION_UPDATED, details);
+            }
+            return Response.ok(ruleMap(updated)).build();
         } catch (WebApplicationException e) {
             throw e;
         } catch (IllegalArgumentException e) {
@@ -284,7 +318,12 @@ public class AssignmentConfigResource {
     public Response deleteRule(@PathParam("id") int id, @QueryParam("projectKey") String projectKey) {
         try {
             requireProjectAdmin(projectKey);
+            RuleDto before = ruleService.getRule(id);
             ruleService.deleteRule(id);
+            if (before != null) {
+                ruleHistoryService.log(before.getProjectKey(), id, before.getName(),
+                        RuleHistoryService.ACTION_DELETED, describer().describeSnapshot(before));
+            }
             return Response.noContent().build();
         } catch (WebApplicationException e) {
             throw e;
@@ -299,7 +338,35 @@ public class AssignmentConfigResource {
         try {
             String projectKey = asString(body.get("projectKey"));
             requireProjectAdmin(projectKey);
-            ruleService.reorder(asIntList(body.get("order")));
+            List<Integer> order = asIntList(body.get("order"));
+
+            Map<Integer, Integer> oldPositions = new LinkedHashMap<>();
+            Map<Integer, RuleDto> rulesById = new LinkedHashMap<>();
+            for (RuleDto rule : ruleService.getRules(projectKey)) {
+                oldPositions.put(rule.getId(), rule.getSortOrder());
+                rulesById.put(rule.getId(), rule);
+            }
+
+            ruleService.reorder(order);
+
+            List<String> details = new ArrayList<>();
+            for (int i = 0; i < order.size(); i++) {
+                Integer ruleId = order.get(i);
+                if (ruleId == null) {
+                    continue;
+                }
+                RuleDto rule = rulesById.get(ruleId);
+                Integer oldPosition = oldPositions.get(ruleId);
+                int newPosition = i + 1;
+                if (rule != null && oldPosition != null && oldPosition != newPosition) {
+                    String name = rule.getName() == null ? "" : rule.getName();
+                    details.add("«" + name + "»: приоритет " + oldPosition + " → " + newPosition);
+                }
+            }
+            if (!details.isEmpty()) {
+                ruleHistoryService.log(projectKey, 0, "Порядок правил",
+                        RuleHistoryService.ACTION_REORDERED, details);
+            }
             return Response.ok().build();
         } catch (WebApplicationException e) {
             throw e;
@@ -350,6 +417,19 @@ public class AssignmentConfigResource {
         map.put("conditions", conditions);
         map.put("sortOrder", rule.getSortOrder());
         map.put("enabled", rule.isEnabled());
+        return map;
+    }
+
+    private Map<String, Object> historyMap(RuleHistoryDto entry) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", entry.getId());
+        map.put("ruleId", entry.getRuleId());
+        map.put("ruleName", entry.getRuleName());
+        map.put("action", entry.getAction());
+        map.put("username", entry.getUsername());
+        map.put("userDisplayName", entry.getUserDisplayName());
+        map.put("changedAt", entry.getChangedAt());
+        map.put("details", entry.getDetails());
         return map;
     }
 
@@ -593,6 +673,22 @@ public class AssignmentConfigResource {
             return field == null ? fieldId : field.getName();
         } catch (RuntimeException e) {
             return fieldId;
+        }
+    }
+
+    private RuleChangeDescriber describer() {
+        return new RuleChangeDescriber(this::fieldName, this::userLabel);
+    }
+
+    private String userLabel(String username) {
+        if (username == null) {
+            return null;
+        }
+        try {
+            ApplicationUser user = userManager.getUserByName(username);
+            return user == null ? username : user.getDisplayName();
+        } catch (RuntimeException e) {
+            return username;
         }
     }
 

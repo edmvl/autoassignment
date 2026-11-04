@@ -10,6 +10,7 @@
     <ao key="autoassignment-ao-module">
         <description>Active Objects module for auto-assignment rules.</description>
         <entity>ru.gpb.jira.plugin.autoassignment.ao.AssignmentRule</entity>
+        <entity>ru.gpb.jira.plugin.autoassignment.ao.RuleChangeLog</entity>
     </ao>
 
     <!-- Project-level configuration servlet (rules) -->
